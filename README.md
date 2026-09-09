@@ -23,7 +23,7 @@ npm run dev               # http server on :3000 + cron poller
 ## Pairing the phone
 
 Pair the dedicated CDC number in the Maytapi console (scan the QR from
-WhatsApp → Linked devices). `GET /health` shows `maytapiSession: logged_in`
+WhatsApp → Linked devices). The endpoint is `/{phone_id}/status` (not `getStatus`). `GET /health` shows `maytapiSession: logged_in`
 once it is up. If the session drops, the poller DMs `ADMIN_PHONE` at most once
 every 30 minutes.
 

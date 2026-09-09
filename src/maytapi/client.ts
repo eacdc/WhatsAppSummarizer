@@ -72,10 +72,17 @@ const phoneScope = () => `${config.maytapi.productId}/${config.maytapi.phoneId}`
 
 export const maytapi = {
   /** Raw responses — callers normalise via src/maytapi/normalise.ts. */
-  getStatus: () => request<unknown>(`${phoneScope()}/getStatus`),
+  /** Session status. Note: the endpoint is `/status`, NOT `/getStatus`. */
+  getStatus: () => request<unknown>(`${phoneScope()}/status`),
   getGroups: () => request<unknown>(`${phoneScope()}/getGroups`),
+  getGroup: (conversationId: string) =>
+    request<unknown>(`${phoneScope()}/getGroups/${encodeURIComponent(conversationId)}`),
   getMessages: (conversationId: string) =>
     request<unknown>(`${phoneScope()}/getMessages/${encodeURIComponent(conversationId)}`),
+  getMessage: (msgId: string) =>
+    request<unknown>(`${phoneScope()}/getMessage/${encodeURIComponent(msgId)}`),
+  /** All chats, 1:1 included — this is how phase 3 will find owners' ACK replies. */
+  getConversations: () => request<unknown>(`${phoneScope()}/getConversations`),
   listPhones: () => request<unknown>(`${config.maytapi.productId}/listPhones`),
   sendMessage: (to: string, message: string) =>
     request<unknown>(`${phoneScope()}/sendMessage`, {
