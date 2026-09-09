@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "seed": "tsx scripts/seed.ts",
     "poll:once": "tsx scripts/poll-once.ts",
+    "groups": "tsx scripts/set-monitored.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
