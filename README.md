@@ -5,8 +5,8 @@ keeps a rolling summary per group on a dashboard, and DMs the responsible person
 when a message signals a concern. **It never posts into a group** — alerts go out
 as 1:1 DMs only.
 
-Status: **Phase 1** (scaffold, Maytapi client, poller, Mongo schema/indexes).
-Phases 2–6 (detector, router, escalation, summariser, dashboard, deploy) are not built yet.
+Status: **Phase 2** (poller + concern detector + router/alerts).
+Phases 3–6 (escalation/ACK, summariser, dashboard, deploy) are not built yet.
 
 ## Setup
 
@@ -14,7 +14,9 @@ Phases 2–6 (detector, router, escalation, summariser, dashboard, deploy) are n
 npm install
 cp .env.example .env      # fill in Mongo + Maytapi credentials (MONGODB_URI_WA)
 npm run seed              # creates indexes, imports groups (all monitored: false)
-npm run poll:once         # one poll cycle, prints the run doc
+npm run seed:routing      # owners + routing rules (edit the arrays in the script first)
+npm run poll:once         # one poll cycle: fetch, classify, alert
+npm run classify:once -- "<groupId>"   # classify now, without waiting for a poll
 npm run dev               # http server on :3000 + cron poller
 ```
 
@@ -70,6 +72,52 @@ Not built yet — `scripts/backfill-export.ts` (parses a WhatsApp "Export chat"
 `.txt` and upserts into `messages`) lands in phase 6. Until then, a
 `possible_gap` warning means shortening `POLL_CRON`.
 
+## How a concern becomes an alert
+
+Every 5 minutes, after polling, each monitored group's unclassified messages go
+to the LLM in **one call per group** — not one per message. The previous 15
+already-classified messages ride along as context so a reply like "still down"
+is intelligible; they are never re-flagged.
+
+**Two tiers.** `LLM_MODEL_FAST` judges first. The batch is re-run on
+`LLM_MODEL_STRONG` if the fast model flagged anything **high severity** or
+returned **malformed JSON**. High severity is what interrupts someone's evening,
+so it gets a second opinion.
+
+**Messages are marked `classified` whatever happens next** — including when
+routing is missing or the DM fails. Otherwise a permanent misconfiguration would
+re-send the same batch to the LLM every 5 minutes forever, at real cost.
+
+**De-duplication.** A new concern is absorbed by an existing `open` or
+`acknowledged` concern of the same group and category raised within
+`cooldownMin` (default 30): its message ids are appended and **no second alert
+is sent**. One machine going down generates a dozen messages; that is one
+problem. A `resolved` concern never absorbs — that problem is closed, and a
+recurrence deserves a fresh alert.
+
+**Routing**, most specific first: a `routing` row matching `groupId + category`,
+then `"*" + category`, then `DEFAULT_OWNER_PHONE`. If none of the three resolves,
+the concern is still recorded and an **error** is logged saying nobody was
+alerted — silence there would be the worst possible failure.
+
+**Alerts are written to `alerts` before the send**, then updated with the
+delivery result. A crash mid-send leaves a record that we tried, rather than no
+trace at all.
+
+## Changing the prompt
+
+`src/detector/prompt.md` is the classifier's system prompt — plain Markdown, no
+code around it. Edit it and restart; nothing else needs touching. It carries the
+CDC-specific vocabulary (romanised Hindi/Bengali signals, machine names, what
+counts as routine chatter) and the severity definitions.
+
+## Swapping the LLM
+
+`src/llm/` is the only place a vendor SDK is imported. `LLM_PROVIDER` selects the
+implementation; `LLM_MODEL_FAST` and `LLM_MODEL_STRONG` select the models. Adding
+a provider means one new file implementing the `Llm` interface plus a case in
+`src/llm/index.ts` — no change to the detector.
+
 ## Maytapi response shape
 
 Pinned against a real `getMessages` response; `tests/fixtures/getMessages.json` is
@@ -115,6 +163,13 @@ src/maytapi/client.ts    every Maytapi call: retry x3, backoff, timeouts
 src/maytapi/normalise.ts the only file that knows Maytapi's response shape
 src/poller/cursor.ts     pure cursor/overlap filtering (unit tested)
 src/poller/poll.ts       per-group poll, session check, run recording
+src/llm/                 the only place a vendor SDK is imported
+src/llm/parse.ts         validates classifier JSON; throws to trigger escalation
+src/detector/prompt.md   the classifier's system prompt — edit freely
+src/detector/concerns.ts de-duplication rules (pure, unit tested)
+src/detector/detect.ts   classify -> de-dup -> open concern -> alert
+src/router/resolve.ts    routing precedence (pure, unit tested)
+src/router/alert.ts      DM formatting and delivery logging
 src/index.ts             express /health + cron
 scripts/                 seed, poll-once, dump-messages
 ```

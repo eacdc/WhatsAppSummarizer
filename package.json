@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
@@ -13,13 +15,16 @@
     "groups": "tsx scripts/set-monitored.ts",
     "dump-messages": "tsx scripts/dump-messages.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "classify:once": "tsx scripts/classify-once.ts",
+    "seed:routing": "tsx scripts/seed-routing.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "mongodb": "^6.12.0",
     "node-cron": "^3.0.3",
+    "openai": "^7.15.0",
     "pino": "^9.6.0"
   },
   "devDependencies": {

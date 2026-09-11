@@ -4,6 +4,7 @@ import { groups, messages, runs } from '../db.js';
 import { maytapi } from '../maytapi/client.js';
 import { normaliseMessages, isLoggedIn } from '../maytapi/normalise.js';
 import { filterNewMessages, newestOf } from './cursor.js';
+import { detectForGroup } from '../detector/detect.js';
 import type { GroupDoc, MessageDoc, RunDoc } from '../types.js';
 
 let lastSessionAlertAt = 0;
@@ -142,12 +143,25 @@ export async function runPoll(): Promise<RunDoc> {
     run.groupsPolled += 1;
     run.messagesIngested += ingested;
     if (error) run.errors.push({ groupId: group._id, scope: 'poll', message: error });
+
+    // Runs even when this cycle ingested nothing — a previous cycle may have
+    // stored messages the detector has not reached yet.
+    try {
+      run.concernsRaised += await detectForGroup(group);
+    } catch (err) {
+      run.errors.push({ groupId: group._id, scope: 'detect', message: String(err) });
+    }
   }
 
   run.finishedAt = new Date();
   await runs().insertOne(run);
   logger.info(
-    { groups: run.groupsPolled, ingested: run.messagesIngested, errors: run.errors.length },
+    {
+      groups: run.groupsPolled,
+      ingested: run.messagesIngested,
+      concerns: run.concernsRaised,
+      errors: run.errors.length,
+    },
     'poll run finished',
   );
   return run;
