@@ -2,11 +2,18 @@
  * ============================================================================
  * THE ONLY FILE THAT KNOWS MAYTAPI'S RESPONSE SHAPE.
  * ============================================================================
- * maytapi.com was unreachable from the build environment, so the field names
- * below are BEST-EFFORT and defensive: each value is read from a list of
- * candidate keys. Paste one real getMessages/getGroups response into
- * `tests/fixtures/` and trim these candidate lists down to the real names —
- * nothing else in the codebase needs to change.
+ * Pinned against a real getMessages response (tests/fixtures/getMessages.json):
+ *
+ *   { success, data: {
+ *       users: { "<jid>": { id, name, phone, image? } },
+ *       messages: [ { timestamp, uid, fromMe, message: {...}, quotedMsg? } ],
+ *       me, participants } }
+ *
+ * Two things here are easy to get wrong:
+ *  - the SENDER is `uid` on the envelope, and the sender's NAME exists only in
+ *    the `data.users` map — it is not on the message itself.
+ *  - `message.type === "info"` rows are system events (group/add, group/leave,
+ *    group/name) carrying no text at all. They are not messages; we drop them.
  */
 
 export interface RawMessage {
@@ -18,6 +25,7 @@ export interface RawMessage {
   type: string;
   mediaUrl: string | null;
   quotedMsgId: string | null;
+  fromMe: boolean;
 }
 
 export interface RawGroup {
@@ -25,29 +33,17 @@ export interface RawGroup {
   name: string;
 }
 
-function pick(obj: any, keys: string[]): any {
-  for (const k of keys) {
-    const parts = k.split('.');
-    let cur = obj;
-    for (const p of parts) {
-      if (cur == null || typeof cur !== 'object') { cur = undefined; break; }
-      cur = cur[p];
-    }
-    if (cur !== undefined && cur !== null && cur !== '') return cur;
-  }
-  return undefined;
-}
+/** System events, not conversation. */
+const SYSTEM_TYPES = new Set(['info', 'notification', 'e2e_notification', 'gp2']);
 
 /**
- * Maytapi timestamps are epoch SECONDS (10 digits) in most responses, but some
- * fields are milliseconds. Normalise both to a BSON Date — the TTL index
- * depends on this being a real Date.
+ * Maytapi sends epoch SECONDS. Accept millis too, and always return a BSON
+ * Date — the TTL index does nothing on a number.
  */
 export function toDate(value: unknown): Date | null {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   if (typeof value === 'number') {
-    const ms = value > 1e12 ? value : value * 1000;
-    const d = new Date(ms);
+    const d = new Date(value > 1e12 ? value : value * 1000);
     return Number.isNaN(d.getTime()) ? null : d;
   }
   if (typeof value === 'string') {
@@ -58,60 +54,70 @@ export function toDate(value: unknown): Date | null {
   return null;
 }
 
-/** Find the array of items in an envelope of unknown shape. */
-function itemsOf(payload: any): any[] {
-  if (Array.isArray(payload)) return payload;
-  for (const key of ['data', 'messages', 'result', 'groups', 'items']) {
-    const v = payload?.[key];
-    if (Array.isArray(v)) return v;
-    if (v && Array.isArray(v.messages)) return v.messages;
-    if (v && Array.isArray(v.data)) return v.data;
-  }
-  return [];
+/** The users map is keyed by jid; a sender may legitimately be absent from it. */
+function nameOf(users: any, uid: string | null): string | null {
+  if (!uid || !users || typeof users !== 'object') return null;
+  const name = users[uid]?.name;
+  return typeof name === 'string' && name ? name : null;
 }
 
-export function normaliseMessages(payload: unknown): RawMessage[] {
+export function normaliseMessages(payload: any): RawMessage[] {
+  const data = payload?.data ?? payload;
+  const rows: any[] = Array.isArray(data?.messages) ? data.messages : [];
+  const users = data?.users;
+
   const out: RawMessage[] = [];
-  for (const raw of itemsOf(payload)) {
-    const msgId = pick(raw, ['id', 'msgId', 'message.id', 'message._serialized', '_serialized', 'key.id']);
-    const ts = toDate(pick(raw, ['timestamp', 'ts', 't', 'time', 'message.timestamp', 'created_at']));
-    if (!msgId || !ts) continue; // unusable without an id and a timestamp
+  for (const row of rows) {
+    const msg = row?.message;
+    const msgId = msg?.id ?? msg?._serialized;
+    const ts = toDate(row?.timestamp);
+    if (!msgId || !ts) continue;
+
+    const type = typeof msg?.type === 'string' ? msg.type : 'text';
+    if (SYSTEM_TYPES.has(type)) continue;
+
+    const uid = typeof row?.uid === 'string' ? row.uid : null;
 
     out.push({
       msgId: String(msgId),
-      senderId: str(pick(raw, ['user.id', 'author', 'from', 'sender.id', 'participant', 'message.author'])),
-      senderName: str(pick(raw, ['user.name', 'senderName', 'sender.name', 'notifyName', 'pushname'])),
+      senderId: uid,
+      senderName: nameOf(users, uid),
       ts,
-      text: str(pick(raw, ['message.text', 'text', 'body', 'message.caption', 'caption', 'message.body'])) ?? '',
-      type: str(pick(raw, ['message.type', 'type'])) ?? 'text',
-      mediaUrl: str(pick(raw, ['message.url', 'media', 'mediaUrl', 'url'])),
-      quotedMsgId: str(pick(raw, ['message.quoted.id', 'quotedMsgId', 'quotedMsg.id', 'reply_to', 'quotedMessageId'])),
+      // Media messages carry a caption instead of text.
+      text: str(msg?.text) ?? str(msg?.caption) ?? '',
+      type,
+      mediaUrl: str(msg?.url) ?? str(msg?.media) ?? null,
+      quotedMsgId: str(row?.quotedMsg?.id) ?? str(row?.quotedMsg?._serialized) ?? null,
+      fromMe: row?.fromMe === true,
     });
   }
   return out;
 }
 
-export function normaliseGroups(payload: unknown): RawGroup[] {
+export function normaliseGroups(payload: any): RawGroup[] {
+  const data = payload?.data ?? payload;
+  const rows: any[] = Array.isArray(data) ? data : Array.isArray(data?.groups) ? data.groups : [];
+
   const out: RawGroup[] = [];
-  for (const raw of itemsOf(payload)) {
-    const id = pick(raw, ['id', 'conversation_id', 'chatId', '_serialized']);
+  for (const row of rows) {
+    const id = row?.id ?? row?.conversation_id ?? row?._serialized;
     if (!id) continue;
-    out.push({ id: String(id), name: str(pick(raw, ['name', 'subject', 'title'])) ?? String(id) });
+    const name = str(row?.name) ?? str(row?.subject) ?? str(row?.title);
+    out.push({ id: String(id), name: name ?? String(id) });
   }
   return out;
 }
 
 /** True when the WhatsApp-Web session is paired and usable. */
 export function isLoggedIn(statusPayload: any): boolean {
-  const s = statusPayload?.status ?? statusPayload?.data?.status ?? statusPayload;
-  const state = String(s?.state ?? s?.status ?? s ?? '').toLowerCase();
+  const s = statusPayload?.status ?? statusPayload?.data?.status ?? statusPayload?.data ?? statusPayload;
   if (typeof s?.loggedIn === 'boolean') return s.loggedIn;
+  const state = String(s?.state ?? s?.status ?? s ?? '').toLowerCase();
   return ['online', 'active', 'connected', 'ready', 'loading'].includes(state);
 }
 
 function str(v: unknown): string | null {
-  if (v === undefined || v === null) return null;
-  if (typeof v === 'string') return v;
+  if (typeof v === 'string') return v || null;
   if (typeof v === 'number' || typeof v === 'boolean') return String(v);
   return null;
 }

@@ -71,6 +71,7 @@ export async function pollGroup(group: GroupDoc): Promise<{ ingested: number; er
         type: m.type,
         mediaUrl: m.mediaUrl,
         quotedMsgId: m.quotedMsgId,
+        fromMe: m.fromMe,
         classified: false,
       }));
 

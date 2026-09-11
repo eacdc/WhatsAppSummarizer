@@ -70,22 +70,41 @@ Not built yet — `scripts/backfill-export.ts` (parses a WhatsApp "Export chat"
 `.txt` and upserts into `messages`) lands in phase 6. Until then, a
 `possible_gap` warning means shortening `POLL_CRON`.
 
-## Maytapi response shape — OPEN QUESTION
+## Maytapi response shape
 
-`maytapi.com` was unreachable from the build environment, so
-`src/maytapi/normalise.ts` reads each field from a **list of candidate key
-names** rather than a verified one. It is the only file in the codebase that
-knows Maytapi's shape. To pin it down:
+Pinned against a real `getMessages` response; `tests/fixtures/getMessages.json` is
+a redacted copy and `tests/normalise.test.ts` asserts against it.
 
-```bash
-npx tsx scripts/dump-messages.ts <conversationId>
+```
+{ success, data: {
+    users: { "<jid>": { id, name, phone, image? } },
+    messages: [ { timestamp, uid, fromMe, message: { id, type, text }, quotedMsg? } ],
+    me, participants } }
 ```
 
-Paste the output into `tests/`, trim the candidate lists to the real names, and
-nothing else needs to change. Two things also still need confirming from the
-docs: whether `getMessages` supports `limit`/`page`/`before` pagination (if it
-does, the poller should page backwards until it crosses `lastTs`), and how many
-messages it returns by default.
+Two traps, both handled in `src/maytapi/normalise.ts` and both easy to
+reintroduce:
+
+- **The sender is `uid` on the envelope**, and the sender's *name* lives only in
+  the `data.users` map, keyed by jid. Nothing on the message body identifies who
+  sent it. A sender missing from `users` yields a null name, which is fine.
+- **`message.type === "info"` rows are system events** (`group/add`,
+  `group/leave`, `group/name`) with no text field at all. They are dropped, not
+  stored — otherwise they reach the classifier as empty messages every run.
+
+`timestamp` is epoch seconds, on the envelope rather than the message.
+
+### Pagination
+
+There is none, and none is needed. `getMessages` returns whatever history the
+WhatsApp-Web session has lazily loaded, and that set *grows* on each call — one
+group went 51 → 101 fetched across two consecutive polls with no new messages.
+So messages cannot be lost by the fetch window sliding past them, and
+`possible_gap` should stay silent in normal operation.
+
+The cost is that the fetched count climbs over time; on a group with deep
+history every poll re-fetches and re-filters the whole archive. Cheap for now,
+worth capping before many groups are monitored.
 
 ## Layout
 

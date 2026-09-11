@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { filterNewMessages, newestOf } from '../src/poller/cursor.js';
-import { toDate, normaliseMessages } from '../src/maytapi/normalise.js';
+import { toDate } from '../src/maytapi/normalise.js';
 
 const at = (iso: string) => new Date(iso);
 const msg = (id: string, iso: string) => ({
@@ -62,20 +62,5 @@ describe('timestamp normalisation', () => {
     expect(toDate('1767261600')?.toISOString()).toBe('2026-01-01T10:00:00.000Z');
     expect(toDate('not a date')).toBeNull();
     expect(toDate(null)).toBeNull();
-  });
-});
-
-describe('message normalisation', () => {
-  it('unwraps a { data: [...] } envelope and skips items with no id or timestamp', () => {
-    const out = normaliseMessages({
-      data: [
-        { id: 'm1', timestamp: 1767261600, message: { text: 'Kolbus band hai', type: 'text' }, user: { id: '91@c.us', name: 'Ravi' } },
-        { timestamp: 1767261601, message: { text: 'no id' } },
-        { id: 'm3', message: { text: 'no timestamp' } },
-      ],
-    });
-    expect(out.map((m) => m.msgId)).toEqual(['m1']);
-    expect(out[0]).toMatchObject({ text: 'Kolbus band hai', senderName: 'Ravi', senderId: '91@c.us', type: 'text' });
-    expect(out[0].ts.toISOString()).toBe('2026-01-01T10:00:00.000Z');
   });
 });

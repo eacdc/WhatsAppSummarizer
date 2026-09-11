@@ -1,0 +1,69 @@
+{
+  "success": true,
+  "data": {
+    "users": {
+      "919000000001@c.us": { "id": "919000000001@c.us", "name": "Ravi", "phone": "919000000001" },
+      "919000000002@c.us": { "id": "919000000002@c.us", "name": "Sunil", "phone": "919000000002", "image": "https://pps.whatsapp.net/v/example.jpg" }
+    },
+    "messages": [
+      {
+        "timestamp": 1786299731,
+        "uid": "919000000001@c.us",
+        "fromMe": false,
+        "message": {
+          "type": "text",
+          "text": "Kolbus band hai, urgent",
+          "id": "false_120363000000000000@g.us_AAA111_1111@lid",
+          "_serialized": "false_120363000000000000@g.us_AAA111_1111@lid"
+        }
+      },
+      {
+        "timestamp": 1786299800,
+        "uid": "919000000002@c.us",
+        "fromMe": true,
+        "message": {
+          "type": "text",
+          "text": "Maintenance ko bола, 1 ghanta lagega",
+          "id": "true_120363000000000000@g.us_BBB222_2222@lid",
+          "_serialized": "true_120363000000000000@g.us_BBB222_2222@lid"
+        },
+        "quotedMsg": {
+          "type": "text",
+          "text": "Kolbus band hai, urgent",
+          "id": "false_120363000000000000@g.us_AAA111_1111@lid",
+          "_serialized": "false_120363000000000000@g.us_AAA111_1111@lid",
+          "user": { "id": "919000000001@c.us", "name": "Ravi", "phone": "919000000001" },
+          "timestamp": 1786299731
+        }
+      },
+      {
+        "timestamp": 1786299900,
+        "uid": "919000000003@c.us",
+        "fromMe": false,
+        "message": {
+          "type": "text",
+          "text": "ok",
+          "id": "false_120363000000000000@g.us_CCC333_3333@lid",
+          "_serialized": "false_120363000000000000@g.us_CCC333_3333@lid"
+        }
+      },
+      {
+        "timestamp": 1786301339,
+        "uid": "919000000002@c.us",
+        "fromMe": true,
+        "message": {
+          "id": "true_120363000000000000@g.us_865792744_919000000002@c.us",
+          "_serialized": "true_120363000000000000@g.us_865792744_919000000002@c.us",
+          "type": "info",
+          "subtype": "group/leave",
+          "participant": { "server": "c.us", "user": "919000000002", "_serialized": "919000000002@c.us" }
+        }
+      }
+    ],
+    "me": { "id": 152557, "phone": "919000000002" },
+    "participants": [
+      { "id": "919000000001@c.us", "name": "Ravi", "phone": "919000000001" },
+      { "id": "919000000002@c.us", "name": "Sunil", "phone": "919000000002" }
+    ]
+  }
+}

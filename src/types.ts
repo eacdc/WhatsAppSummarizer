@@ -24,6 +24,7 @@ export interface MessageDoc {
   type: string;
   mediaUrl: string | null;
   quotedMsgId: string | null;
+  fromMe: boolean;
   classified: boolean;
 }
 
