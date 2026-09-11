@@ -17,7 +17,7 @@ function num(name: string, fallback: number): number {
 }
 
 export const config = {
-  mongodbUri: req('MONGODB_URI'),
+  mongodbUri: req('MONGODB_URI_WA'),
 
   maytapi: {
     productId: req('MAYTAPI_PRODUCT_ID'),

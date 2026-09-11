@@ -12,7 +12,7 @@ Phases 2–6 (detector, router, escalation, summariser, dashboard, deploy) are n
 
 ```bash
 npm install
-cp .env.example .env      # fill in Mongo + Maytapi credentials
+cp .env.example .env      # fill in Mongo + Maytapi credentials (MONGODB_URI_WA)
 npm run seed              # creates indexes, imports groups (all monitored: false)
 npm run poll:once         # one poll cycle, prints the run doc
 npm run dev               # http server on :3000 + cron poller
