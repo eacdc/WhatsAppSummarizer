@@ -11,6 +11,7 @@
     "seed": "tsx scripts/seed.ts",
     "poll:once": "tsx scripts/poll-once.ts",
     "groups": "tsx scripts/set-monitored.ts",
+    "dump-messages": "tsx scripts/dump-messages.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
