@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Monitor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app"><p class="empty">Loading…</p></main>
+<script type="module">
+import { api, requireLogin, render, esc, ago, bullets, notice } from './app.js';
+
+if (requireLogin()) {
+  const app = document.getElementById('app');
+  render(app, async () => {
+    const [health, { groups }] = await Promise.all([api('/health'), api('/groups')]);
+
+    const monitored = groups.filter((g) => g.monitored);
+    const openTotal = groups.reduce((n, g) => n + (g.concernCounts?.open ?? 0), 0);
+    const errors = health.lastRunErrors?.length ?? 0;
+
+    // The health strip answers "is this thing actually working right now?"
+    // before anything else, because a stale dashboard looks identical to a
+    // quiet day.
+    const stale = health.lastRunAgeSeconds != null && health.lastRunAgeSeconds > 900;
+    const warnings = [];
+    if (health.enabled === false) warnings.push('The poller is not running (WHATSAPP_MONITOR_ENABLED is off). Data below may be stale.');
+    if (health.maytapiSession && health.maytapiSession !== 'logged_in') warnings.push('The WhatsApp session is not logged in - re-pair the phone.');
+    if (stale) warnings.push(`Last poll was ${ago(health.lastRunAt)} - the poller may have stopped.`);
+
+    app.innerHTML = `
+      <h1>Dashboard</h1>
+      <p class="sub">${monitored.length} group${monitored.length === 1 ? '' : 's'} monitored</p>
+      ${warnings.map((w) => notice(w, 'err')).join('')}
+      <div class="strip">
+        <div class="stat"><b>${openTotal}</b><span>open concerns</span></div>
+        <div class="stat"><b>${esc(ago(health.lastRunAt))}</b><span>last poll</span></div>
+        <div class="stat"><b>${errors}</b><span>errors last run</span></div>
+        <div class="stat"><b>${esc(health.maytapiSession ?? '-')}</b><span>whatsapp session</span></div>
+      </div>
+
+      ${monitored.length === 0
+        ? `<p class="empty">No groups are being monitored yet. Turn one on under <a href="admin.html">Admin</a>.</p>`
+        : monitored.map(card).join('')}
+    `;
+  });
+
+  function card(g) {
+    const open = g.concernCounts?.open ?? 0;
+    const ack = g.concernCounts?.acknowledged ?? 0;
+    return `
+      <div class="card">
+        <div class="row spread">
+          <h3><a href="group.html?id=${encodeURIComponent(g._id)}">${esc(g.name)}</a></h3>
+          <span class="muted">${esc(ago(g.lastTs))}</span>
+        </div>
+        <div class="row muted">
+          ${open > 0 ? `<span class="pill st-open">${open} open</span>` : '<span>no open concerns</span>'}
+          ${ack > 0 ? `<span class="pill st-acknowledged">${ack} acknowledged</span>` : ''}
+          ${g.department ? `<span>${esc(g.department)}</span>` : ''}
+        </div>
+        ${bullets(g.rollingSummary?.bullets)}
+      </div>`;
+  }
+}
+</script>
+</body>
+</html>

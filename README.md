@@ -2,8 +2,49 @@
 
 The dashboard for CDC Printers' WhatsApp office-group monitor.
 
-**Not built yet.** The backend is finished and its API is live; this repo holds
-the dashboard that consumes it.
+Plain HTML, CSS and vanilla JS. **No build step, no dependencies, no framework** —
+open a file and it runs, and deploying is copying six files to any static host.
+That keeps it fast on shop-floor 4G and editable by anyone without a toolchain.
+
+```
+index.html     health strip + a card per monitored group
+group.html     one group: summaries, concerns, last 50 messages
+concerns.html  filterable list, and the detail view with Acknowledge / Resolve
+admin.html     groups, owners + routing, and recent runs
+app.js         API client, auth, formatting
+style.css      the lot
+```
+
+## Running it
+
+Point it at your backend by editing `DEFAULT_API` at the top of `app.js`
+(`http://localhost:3001` by default). It can also be overridden per browser with
+`localStorage.setItem('wa_api_base', 'https://…')`, which is handy for testing
+against a deployed backend without editing the file.
+
+Then serve the folder — any static server will do:
+
+```bash
+npx serve .          # or: python -m http.server 8080
+```
+
+Opening the files directly with `file://` will not work: the pages use ES
+modules, which browsers refuse to load over `file://`.
+
+Sign in with your CDC account — the same credentials as the other CDC tools. The
+token is kept in `localStorage`; a 401 anywhere clears it and returns you to the
+login form.
+
+## Notes on the build
+
+- **Mobile first.** On screens under 640px the tables restack as cards, because
+  a five-column table pushes the summary — the only column that matters —
+  off-screen. Verified at 420px and 1000px with no horizontal overflow.
+- **Everything interpolated is escaped.** The content is WhatsApp messages
+  written by people we do not control, so `esc()` guards every insertion.
+- **Dark mode** follows the system setting.
+- A **409** on acknowledge/resolve means someone else got there first; the page
+  reloads to show the truth instead of arguing with it.
 
 ## Where the backend is
 

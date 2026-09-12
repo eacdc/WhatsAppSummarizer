@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · WhatsApp Monitor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app"><p class="empty">Loading…</p></main>
+<script type="module">
+import { api, requireLogin, render, esc, ago, when, notice } from './app.js';
+
+if (requireLogin()) {
+  const app = document.getElementById('app');
+  const tab = new URLSearchParams(location.search).get('tab') ?? 'groups';
+
+  render(app, async () => {
+    const nav = ['groups', 'routing', 'runs']
+      .map((t) => `<a href="admin.html?tab=${t}"${t === tab ? ' aria-current="page"' : ''}>${t}</a>`)
+      .join(' · ');
+
+    app.innerHTML = `<h1>Admin</h1><p class="sub">${nav}</p><div id="err"></div><div id="body"></div>`;
+    const body = document.getElementById('body');
+
+    if (tab === 'groups') await renderGroups(body);
+    else if (tab === 'routing') await renderRouting(body);
+    else await renderRuns(body);
+  });
+
+  const fail = (err) => {
+    document.getElementById('err').innerHTML = notice(err.message, 'err');
+  };
+
+  // ------------------------------------------------------------- groups
+
+  async function renderGroups(body) {
+    const { groups } = await api('/groups');
+
+    body.innerHTML = `
+      <p class="muted">Turning a group on sets its start point to now. Messages sent
+      before that are never read - and turning it off and on again does not move it.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Monitored</th><th>Group</th><th>Department</th><th>Last message</th></tr></thead>
+        <tbody>${groups.map((g) => `
+          <tr>
+            <td><input type="checkbox" data-toggle="${esc(g._id)}" ${g.monitored ? 'checked' : ''}></td>
+            <td>${esc(g.name)}<div class="mono muted">${esc(g._id)}</div></td>
+            <td data-label="Dept"><input data-dept="${esc(g._id)}" value="${esc(g.department ?? '')}" size="12" placeholder="-"></td>
+            <td class="muted" data-label="Last message">${esc(ago(g.lastTs))}</td>
+          </tr>`).join('')}</tbody></table></div>`;
+
+    for (const box of body.querySelectorAll('[data-toggle]')) {
+      box.onchange = async () => {
+        box.disabled = true;
+        try {
+          await api(`/groups/${encodeURIComponent(box.dataset.toggle)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ monitored: box.checked }),
+          });
+        } catch (err) {
+          box.checked = !box.checked; // put the UI back to the truth
+          fail(err);
+        }
+        box.disabled = false;
+      };
+    }
+
+    for (const input of body.querySelectorAll('[data-dept]')) {
+      input.onchange = async () => {
+        try {
+          await api(`/groups/${encodeURIComponent(input.dataset.dept)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ department: input.value.trim() }),
+          });
+        } catch (err) {
+          fail(err);
+        }
+      };
+    }
+  }
+
+  // ------------------------------------------------------------ routing
+
+  async function renderRouting(body) {
+    const [d, { groups }] = await Promise.all([api('/owners'), api('/groups')]);
+    const groupName = (id) => (id === '*' ? 'Any group' : groups.find((g) => g._id === id)?.name ?? id);
+
+    body.innerHTML = `
+      <h2>Owners</h2>
+      <p class="muted">Phone numbers are digits only, international format, no + or spaces.
+      The default owner is ${d.defaults.ownerPhone ? `<span class="mono">${esc(d.defaults.ownerPhone)}</span>` : '<b>not set</b> - concerns with no matching rule reach nobody'}.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Phone</th><th>Name</th><th>Role</th><th>Escalates to</th><th></th></tr></thead>
+        <tbody>${d.owners.map((o) => `
+          <tr>
+            <td class="mono">${esc(o._id)}</td>
+            <td data-label="Name">${esc(o.name ?? '-')}</td>
+            <td data-label="Role">${esc(o.role ?? '-')}</td>
+            <td class="mono" data-label="Escalates to">${esc(o.escalationTo ?? '-')}</td>
+            <td><button data-del-owner="${esc(o._id)}">Delete</button></td>
+          </tr>`).join('') || '<tr><td colspan="5" class="empty">No owners yet.</td></tr>'}</tbody></table></div>
+
+      <form class="inline" id="ownerForm">
+        <input name="phone" placeholder="919830000000" required pattern="\\d{10,15}">
+        <input name="name" placeholder="Name">
+        <input name="role" placeholder="Role" size="10">
+        <input name="escalationTo" placeholder="Escalates to" pattern="\\d{10,15}">
+        <button class="primary" type="submit">Save owner</button>
+      </form>
+
+      <h2>Routing</h2>
+      <p class="muted">Most specific wins: a rule for this group and category, then any group
+      and that category, then the default owner.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Group</th><th>Category</th><th>Owner</th><th>Cooldown</th><th>Escalate after</th><th></th></tr></thead>
+        <tbody>${d.routing.map((r) => `
+          <tr>
+            <td>${esc(groupName(r.groupId))}</td>
+            <td data-label="Category">${esc(r.category)}</td>
+            <td class="mono" data-label="Owner">${esc(r.ownerPhone)}</td>
+            <td class="muted" data-label="Cooldown">${esc(r.cooldownMin ?? d.defaults.cooldownMin)}m</td>
+            <td class="muted" data-label="Escalate after">${esc(r.escalateAfterMin ?? d.defaults.escalateAfterMin)}m</td>
+            <td><button data-del-route="${esc(r.groupId)}|${esc(r.category)}">Delete</button></td>
+          </tr>`).join('') || '<tr><td colspan="6" class="empty">No rules - everything goes to the default owner.</td></tr>'}</tbody></table></div>
+
+      <form class="inline" id="routeForm">
+        <select name="groupId"><option value="*">Any group</option>${groups.map((g) => `<option value="${esc(g._id)}">${esc(g.name)}</option>`).join('')}</select>
+        <select name="category">${d.categories.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
+        <input name="ownerPhone" placeholder="Owner phone" required pattern="\\d{10,15}">
+        <input name="cooldownMin" type="number" min="1" placeholder="Cooldown" size="6">
+        <input name="escalateAfterMin" type="number" min="1" placeholder="Escalate" size="6">
+        <button class="primary" type="submit">Save rule</button>
+      </form>`;
+
+    document.getElementById('ownerForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      try {
+        await api(`/owners/${encodeURIComponent(f.phone)}`, { method: 'PUT', body: JSON.stringify(f) });
+        location.reload();
+      } catch (err) { fail(err); }
+    };
+
+    document.getElementById('routeForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.target));
+      for (const k of ['cooldownMin', 'escalateAfterMin']) if (!f[k]) delete f[k];
+      try {
+        await api('/routing', { method: 'PUT', body: JSON.stringify(f) });
+        location.reload();
+      } catch (err) { fail(err); }
+    };
+
+    for (const btn of body.querySelectorAll('[data-del-owner]')) {
+      btn.onclick = async () => {
+        if (!confirm(`Delete owner ${btn.dataset.delOwner}?`)) return;
+        try {
+          await api(`/owners/${encodeURIComponent(btn.dataset.delOwner)}`, { method: 'DELETE' });
+          location.reload();
+        } catch (err) { fail(err); }
+      };
+    }
+
+    for (const btn of body.querySelectorAll('[data-del-route]')) {
+      btn.onclick = async () => {
+        const [groupId, category] = btn.dataset.delRoute.split('|');
+        if (!confirm(`Delete the ${category} rule?`)) return;
+        try {
+          await api(`/routing?groupId=${encodeURIComponent(groupId)}&category=${encodeURIComponent(category)}`, { method: 'DELETE' });
+          location.reload();
+        } catch (err) { fail(err); }
+      };
+    }
+  }
+
+  // --------------------------------------------------------------- runs
+
+  async function renderRuns(body) {
+    const { runs } = await api('/runs');
+    body.innerHTML = `
+      <div class="scroll"><table>
+        <thead><tr><th>Started</th><th>Groups</th><th>Ingested</th><th>Concerns</th><th>Ack</th><th>Escalated</th><th>Errors</th></tr></thead>
+        <tbody>${runs.map((r) => `
+          <tr>
+            <td class="muted">${esc(when(r.startedAt))}</td>
+            <td data-label="Groups">${r.groupsPolled ?? 0}</td>
+            <td data-label="Ingested">${r.messagesIngested ?? 0}</td>
+            <td data-label="Concerns">${r.concernsRaised ?? 0}</td>
+            <td data-label="Ack">${r.concernsAcknowledged ?? 0}</td>
+            <td data-label="Escalated">${r.concernsEscalated ?? 0}</td>
+            <td data-label="Errors">${r.errors?.length
+              ? `<span class="sev-high">${esc(r.errors.map((e) => e.message).join('; ').slice(0, 120))}</span>`
+              : '-'}</td>
+          </tr>`).join('') || '<tr><td colspan="7" class="empty">No runs yet.</td></tr>'}</tbody></table></div>`;
+  }
+}
+</script>
+</body>
+</html>

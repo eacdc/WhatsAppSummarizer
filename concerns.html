@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Concerns · WhatsApp Monitor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app"><p class="empty">Loading…</p></main>
+<script type="module">
+import { api, requireLogin, render, esc, ago, when, sevPill, statusPill, notice } from './app.js';
+
+if (requireLogin()) {
+  const app = document.getElementById('app');
+  const params = new URLSearchParams(location.search);
+  // One page, two views: the list, or a single concern when ?id= is present.
+  render(app, () => (params.get('id') ? detail(params.get('id')) : list()));
+
+  async function list() {
+    const status = params.get('status') ?? '';
+    const category = params.get('category') ?? '';
+    const groupId = params.get('groupId') ?? '';
+
+    const query = new URLSearchParams();
+    if (status) query.set('status', status);
+    if (category) query.set('category', category);
+    if (groupId) query.set('groupId', groupId);
+
+    const [d, { groups }] = await Promise.all([
+      api(`/concerns${query.toString() ? `?${query}` : ''}`),
+      api('/groups'),
+    ]);
+
+    const opt = (v, label, current) =>
+      `<option value="${esc(v)}"${v === current ? ' selected' : ''}>${esc(label)}</option>`;
+
+    app.innerHTML = `
+      <h1>Concerns</h1>
+      <p class="sub">${d.concerns.length} shown</p>
+      <form class="inline" id="filters">
+        <select name="status">${opt('', 'Any status', status)}${d.statuses.map((s) => opt(s, s, status)).join('')}</select>
+        <select name="category">${opt('', 'Any category', category)}${d.categories.map((c) => opt(c, c, category)).join('')}</select>
+        <select name="groupId">${opt('', 'Any group', groupId)}${groups.map((g) => opt(g._id, g.name, groupId)).join('')}</select>
+        <button type="submit">Filter</button>
+      </form>
+
+      ${d.concerns.length === 0
+        ? '<p class="empty">Nothing matches.</p>'
+        : `<div class="scroll"><table>
+            <thead><tr><th>When</th><th>Severity</th><th>Group</th><th>Summary</th></tr></thead>
+            <tbody>${d.concerns.map((c) => `
+              <tr>
+                <td class="muted">${esc(ago(c.createdAt))}</td>
+                <td>${sevPill(c.severity)} ${statusPill(c.status)}</td>
+                <td data-label="Group">${esc(c.groupName)}</td>
+                <td data-label="">
+                  <a href="concerns.html?id=${esc(c._id)}">${esc(c.summary)}</a>
+                  <div class="muted">${esc(c.category)}</div>
+                </td>
+              </tr>`).join('')}</tbody></table></div>`}`;
+
+    document.getElementById('filters').onsubmit = (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const q = new URLSearchParams();
+      for (const [k, v] of f.entries()) if (v) q.set(k, v);
+      location.search = q.toString();
+    };
+  }
+
+  async function detail(id) {
+    const d = await api(`/concerns/${encodeURIComponent(id)}`);
+    const c = d.concern;
+
+    // Messages age out after 60 days while concerns do not, so say what is
+    // missing rather than rendering a silent gap.
+    const missing = (c.messageIds?.length ?? 0) - d.messages.length;
+
+    app.innerHTML = `
+      <p class="sub"><a href="concerns.html">&larr; All concerns</a></p>
+      <h1>${esc(c.summary)}</h1>
+      <div class="row" style="margin-bottom:12px">
+        ${sevPill(c.severity)} ${statusPill(c.status)}
+        <span class="muted">${esc(c.category)} · ${esc(d.groupName)} · raised ${esc(ago(c.createdAt))}</span>
+      </div>
+
+      <div id="actionErr"></div>
+      <div class="row" style="margin-bottom:16px">
+        <button id="ack" class="primary" ${c.status === 'open' ? '' : 'disabled'}>Acknowledge</button>
+        <button id="resolve" ${c.status === 'resolved' ? 'disabled' : ''}>Resolve</button>
+      </div>
+
+      ${c.escalatedTo?.length
+        ? notice(`Escalated to ${c.escalatedTo.map(esc).join(', ')}`, 'info')
+        : ''}
+
+      <h2>What triggered it</h2>
+      <div class="card">
+        ${d.messages.length === 0
+          ? '<p class="empty">The messages are no longer retained.</p>'
+          : d.messages.map((m) => `
+            <div class="msg">
+              <b>${esc(m.senderName ?? 'unknown')}</b>
+              <span class="when">${esc(when(m.ts))}</span>
+              <div>${esc(m.text)}</div>
+            </div>`).join('')}
+        ${missing > 0 ? `<p class="muted">${missing} older message(s) no longer retained.</p>` : ''}
+      </div>
+
+      <h2>Alerts</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>When</th><th>To</th><th>Channel</th><th>Delivered</th></tr></thead>
+        <tbody>${d.alerts.length === 0
+          ? '<tr><td colspan="4" class="empty">No alerts sent.</td></tr>'
+          : d.alerts.map((a) => `
+            <tr>
+              <td class="muted">${esc(when(a.sentAt))}</td>
+              <td class="mono" data-label="To">${esc(a.toName ?? a.toPhone)}</td>
+              <td data-label="Channel">${esc(a.channel)}</td>
+              <td data-label="Delivered">${a.delivered ? 'yes' : `<span class="sev-high">${esc(a.error ?? 'no')}</span>`}</td>
+            </tr>`).join('')}</tbody></table></div>`;
+
+    for (const [btn, action] of [['ack', 'acknowledge'], ['resolve', 'resolve']]) {
+      document.getElementById(btn).onclick = async (e) => {
+        e.target.disabled = true;
+        try {
+          await api(`/concerns/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
+          location.reload();
+        } catch (err) {
+          // 409 means someone else got there first - that is the current truth,
+          // not an error worth arguing with, so just show the new state.
+          if (err.status === 409) return location.reload();
+          document.getElementById('actionErr').innerHTML = notice(err.message, 'err');
+          e.target.disabled = false;
+        }
+      };
+    }
+  }
+}
+</script>
+</body>
+</html>

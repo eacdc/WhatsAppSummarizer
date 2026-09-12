@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Group · WhatsApp Monitor</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app"><p class="empty">Loading…</p></main>
+<script type="module">
+import { api, requireLogin, render, esc, ago, when, bullets, sevPill, statusPill } from './app.js';
+
+if (requireLogin()) {
+  const app = document.getElementById('app');
+  const id = new URLSearchParams(location.search).get('id');
+
+  render(app, async () => {
+    if (!id) throw new Error('No group id in the URL');
+    const d = await api(`/groups/${encodeURIComponent(id)}`);
+
+    app.innerHTML = `
+      <h1>${esc(d.group.name)}</h1>
+      <p class="sub">
+        ${d.group.monitored ? 'Monitored' : 'Not monitored'}
+        ${d.group.department ? ` · ${esc(d.group.department)}` : ''}
+        · last message ${esc(ago(d.group.lastTs))}
+      </p>
+
+      <h2>Rolling summary</h2>
+      <div class="card">
+        ${d.rollingSummary
+          ? `<p class="muted">${d.rollingSummary.messageCount} messages, to ${esc(when(d.rollingSummary.periodEnd))}</p>
+             ${bullets(d.rollingSummary.bullets)}`
+          : '<p class="empty">No rolling summary yet.</p>'}
+      </div>
+
+      <h2>Concerns</h2>
+      ${d.concerns.length === 0
+        ? '<p class="empty">Nothing open.</p>'
+        : d.concerns.map((c) => `
+          <div class="card">
+            <div class="row spread">
+              <div class="row">${sevPill(c.severity)} ${statusPill(c.status)}
+                <span class="muted">${esc(c.category)}</span></div>
+              <span class="muted">${esc(ago(c.createdAt))}</span>
+            </div>
+            <p style="margin:6px 0 0"><a href="concerns.html?id=${esc(c._id)}">${esc(c.summary)}</a></p>
+          </div>`).join('')}
+
+      <h2>Daily summaries</h2>
+      ${d.dailySummaries.length === 0
+        ? '<p class="empty">None yet.</p>'
+        : d.dailySummaries.map((s) => `
+          <div class="card">
+            <div class="row spread"><h3>${esc(s.dayKey ?? when(s.periodEnd))}</h3>
+              <span class="muted">${s.messageCount} messages</span></div>
+            ${bullets(s.bullets)}
+          </div>`).join('')}
+
+      <h2>Last ${d.messages.length} messages</h2>
+      <div class="card">
+        ${d.messages.length === 0
+          ? '<p class="empty">No messages retained.</p>'
+          : d.messages.map((m) => `
+            <div class="msg">
+              <b>${esc(m.senderName ?? 'unknown')}</b>
+              <span class="when">${esc(when(m.ts))}</span>
+              <div>${esc(m.text)}</div>
+            </div>`).join('')}
+      </div>`;
+  });
+}
+</script>
+</body>
+</html>
