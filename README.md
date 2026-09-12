@@ -117,19 +117,3 @@ Categories: `machine_breakdown`, `quality_reprint`, `delivery_delay`,
   only just been switched on.
 - **Empty bullet arrays are normal and correct** — a quiet window genuinely has
   nothing to report. Don't render four empty headings.
-
-## Planned pages
-
-- `/` — health strip (session logged in? last poll? errors in 24h?), then one
-  card per monitored group: latest rolling summary, open concern count, last
-  message time
-- `/groups/:id` — daily summaries, rolling summary, live concerns, last 50
-  messages
-- `/concerns` — filterable table; a row opens the triggering messages, the alert
-  log, and Acknowledge / Resolve
-- `/admin/groups` — toggle `monitored`, edit `department`, set `joinedAt`
-- `/admin/routing` — owners and routing rules
-- `/admin/runs` — last 100 runs with counts and errors
-
-Plain and fast, and readable on a phone — it gets opened one-handed on a shop
-floor more often than at a desk.
