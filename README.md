@@ -38,6 +38,11 @@ query string — `concerns.html?id=…` is the concern detail view, and
 the list instead of the concern. `serve.json` in this folder turns that off;
 keep the equivalent setting in mind on any other host.
 
+It also maps the extensionless paths (`/concerns`, `/admin`, `/group`) onto the
+real files, so both forms work. Browsers cache a 301 persistently, so anyone who
+loaded these pages while clean URLs were on will keep being redirected to the
+extensionless form by their own cache long after the server stopped doing it.
+
 **Keep nothing secret in this folder.** Everything beside these files is served
 to anyone who can reach the port — and `serve` prints a LAN address, not just
 localhost, so that means anyone on the office network. A static server has no
