@@ -38,6 +38,14 @@ query string — `concerns.html?id=…` is the concern detail view, and
 the list instead of the concern. `serve.json` in this folder turns that off;
 keep the equivalent setting in mind on any other host.
 
+**Keep nothing secret in this folder.** Everything beside these files is served
+to anyone who can reach the port — and `serve` prints a LAN address, not just
+localhost, so that means anyone on the office network. A static server has no
+deny list: `serve.json` turns off the directory listing, but a file that is
+there is still downloadable by name, so a `.env` or a chat dump sitting here is
+readable by anyone who guesses the name. They are in `.gitignore`, which keeps
+them out of git and does nothing at all about HTTP. Keep them somewhere else.
+
 Sign in with your CDC account — the same credentials as the other CDC tools. The
 token is kept in `localStorage`; a 401 anywhere clears it and returns you to the
 login form.
