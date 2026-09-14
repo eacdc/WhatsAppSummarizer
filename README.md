@@ -31,6 +31,13 @@ npx serve .          # or: python -m http.server 8080
 Opening the files directly with `file://` will not work: the pages use ES
 modules, which browsers refuse to load over `file://`.
 
+**Do not let the host rewrite URLs.** The pages navigate by real filename and
+query string — `concerns.html?id=…` is the concern detail view, and
+`concerns.html` alone is the list. `serve` has clean URLs on by default, which
+301s `concerns.html?id=…` to `/concerns` and **drops the id**, silently showing
+the list instead of the concern. `serve.json` in this folder turns that off;
+keep the equivalent setting in mind on any other host.
+
 Sign in with your CDC account — the same credentials as the other CDC tools. The
 token is kept in `localStorage`; a 401 anywhere clears it and returns you to the
 login form.
