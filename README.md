@@ -43,6 +43,14 @@ real files, so both forms work. Browsers cache a 301 persistently, so anyone who
 loaded these pages while clean URLs were on will keep being redirected to the
 extensionless form by their own cache long after the server stopped doing it.
 
+**Page parameters live in the fragment, not the query string** —
+`concerns.html#id=…`, `group.html#id=…`, `admin.html#tab=…`. A fragment is never
+sent to the server, so no rewrite, redirect or *cached* redirect can strip it;
+a query string can be, and was. Read them with `routeParams()` and register the
+page's router with `onRoute()` (both in `app.js`) — moving between `#id=1` and
+no fragment is a same-document navigation, so a page that renders once on load
+would never update.
+
 **Keep nothing secret in this folder.** Everything beside these files is served
 to anyone who can reach the port — and `serve` prints a LAN address, not just
 localhost, so that means anyone on the office network. A static server has no

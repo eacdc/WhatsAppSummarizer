@@ -52,7 +52,7 @@ if (requireLogin()) {
     return `
       <div class="card">
         <div class="row spread">
-          <h3><a href="group.html?id=${encodeURIComponent(g._id)}">${esc(g.name)}</a></h3>
+          <h3><a href="group.html#id=${encodeURIComponent(g._id)}">${esc(g.name)}</a></h3>
           <span class="muted">${esc(ago(g.lastTs))}</span>
         </div>
         <div class="row muted">

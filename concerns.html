@@ -9,15 +9,19 @@
 <body>
 <main id="app"><p class="empty">Loading…</p></main>
 <script type="module">
-import { api, requireLogin, render, esc, ago, when, sevPill, statusPill, notice } from './app.js';
+import { api, requireLogin, render, esc, ago, when, sevPill, statusPill, notice, routeParams, onRoute } from './app.js';
 
 if (requireLogin()) {
   const app = document.getElementById('app');
-  const params = new URLSearchParams(location.search);
-  // One page, two views: the list, or a single concern when ?id= is present.
-  render(app, () => (params.get('id') ? detail(params.get('id')) : list()));
+  // One page, two views: the list, or a single concern when #id= is present.
+  // Re-routed on every fragment change, because moving between them does not
+  // reload the page.
+  onRoute(() => {
+    const params = routeParams();
+    render(app, () => (params.get('id') ? detail(params.get('id')) : list(params)));
+  });
 
-  async function list() {
+  async function list(params) {
     const status = params.get('status') ?? '';
     const category = params.get('category') ?? '';
     const groupId = params.get('groupId') ?? '';
@@ -55,7 +59,7 @@ if (requireLogin()) {
                 <td>${sevPill(c.severity)} ${statusPill(c.status)}</td>
                 <td data-label="Group">${esc(c.groupName)}</td>
                 <td data-label="">
-                  <a href="concerns.html?id=${esc(c._id)}">${esc(c.summary)}</a>
+                  <a href="concerns.html#id=${esc(c._id)}">${esc(c.summary)}</a>
                   <div class="muted">${esc(c.category)}</div>
                 </td>
               </tr>`).join('')}</tbody></table></div>`}`;
@@ -65,7 +69,7 @@ if (requireLogin()) {
       const f = new FormData(e.target);
       const q = new URLSearchParams();
       for (const [k, v] of f.entries()) if (v) q.set(k, v);
-      location.search = q.toString();
+      location.hash = q.toString();
     };
   }
 
@@ -78,7 +82,7 @@ if (requireLogin()) {
     const missing = (c.messageIds?.length ?? 0) - d.messages.length;
 
     app.innerHTML = `
-      <p class="sub"><a href="concerns.html">&larr; All concerns</a></p>
+      <p class="sub"><a href="concerns.html#">&larr; All concerns</a></p>
       <h1>${esc(c.summary)}</h1>
       <div class="row" style="margin-bottom:12px">
         ${sevPill(c.severity)} ${statusPill(c.status)}

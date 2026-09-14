@@ -9,15 +9,15 @@
 <body>
 <main id="app"><p class="empty">Loading…</p></main>
 <script type="module">
-import { api, requireLogin, render, esc, ago, when, notice } from './app.js';
+import { api, requireLogin, render, esc, ago, when, notice, routeParams, onRoute } from './app.js';
 
 if (requireLogin()) {
   const app = document.getElementById('app');
-  const tab = new URLSearchParams(location.search).get('tab') ?? 'groups';
-
-  render(app, async () => {
+  // Switching tabs only changes the fragment, which does not reload the page.
+  onRoute(() => render(app, async () => {
+    const tab = routeParams().get('tab') ?? 'groups';
     const nav = ['groups', 'routing', 'runs']
-      .map((t) => `<a href="admin.html?tab=${t}"${t === tab ? ' aria-current="page"' : ''}>${t}</a>`)
+      .map((t) => `<a href="admin.html#tab=${t}"${t === tab ? ' aria-current="page"' : ''}>${t}</a>`)
       .join(' · ');
 
     app.innerHTML = `<h1>Admin</h1><p class="sub">${nav}</p><div id="err"></div><div id="body"></div>`;
@@ -26,7 +26,7 @@ if (requireLogin()) {
     if (tab === 'groups') await renderGroups(body);
     else if (tab === 'routing') await renderRouting(body);
     else await renderRuns(body);
-  });
+  }));
 
   const fail = (err) => {
     document.getElementById('err').innerHTML = notice(err.message, 'err');

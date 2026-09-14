@@ -9,11 +9,11 @@
 <body>
 <main id="app"><p class="empty">Loading…</p></main>
 <script type="module">
-import { api, requireLogin, render, esc, ago, when, bullets, sevPill, statusPill } from './app.js';
+import { api, requireLogin, render, esc, ago, when, bullets, sevPill, statusPill, routeParams } from './app.js';
 
 if (requireLogin()) {
   const app = document.getElementById('app');
-  const id = new URLSearchParams(location.search).get('id');
+  const id = routeParams().get('id');
 
   render(app, async () => {
     if (!id) throw new Error('No group id in the URL');
@@ -45,7 +45,7 @@ if (requireLogin()) {
                 <span class="muted">${esc(c.category)}</span></div>
               <span class="muted">${esc(ago(c.createdAt))}</span>
             </div>
-            <p style="margin:6px 0 0"><a href="concerns.html?id=${esc(c._id)}">${esc(c.summary)}</a></p>
+            <p style="margin:6px 0 0"><a href="concerns.html#id=${esc(c._id)}">${esc(c.summary)}</a></p>
           </div>`).join('')}
 
       <h2>Daily summaries</h2>

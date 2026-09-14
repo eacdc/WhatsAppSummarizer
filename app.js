@@ -58,6 +58,39 @@ export async function login(username, password) {
   return body.user;
 }
 
+// ---------------------------------------------------------------- routing
+
+/**
+ * Page parameters, read from the fragment (`#id=...`) rather than the query
+ * string.
+ *
+ * A fragment is never sent to the server, so no rewrite, redirect or cached
+ * redirect can strip it. A query string can be, and was: a host serving clean
+ * URLs 301s `concerns.html?id=x` to `/concerns` and drops the id, and because a
+ * 301 never expires, every browser that saw one keeps doing it long after the
+ * host is fixed.
+ *
+ * `location.search` is still read as a fallback so older links and bookmarks
+ * keep working.
+ */
+export function routeParams() {
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  if ([...hash.keys()].length > 0) return hash;
+  return new URLSearchParams(location.search);
+}
+
+/**
+ * Run a page's router now, and again whenever the fragment changes.
+ *
+ * Moving between `concerns.html#id=1` and `concerns.html` is a same-document
+ * navigation: the browser fires `hashchange` and does NOT reload, so without
+ * this the previous view would simply stay on screen.
+ */
+export function onRoute(fn) {
+  fn();
+  window.addEventListener('hashchange', fn);
+}
+
 // ---------------------------------------------------------------- chrome
 
 const PAGES = [
@@ -67,10 +100,13 @@ const PAGES = [
 ];
 
 export function chrome() {
-  const here = location.pathname.split('/').pop() || 'index.html';
+  // Hosts that serve clean URLs give a pathname of "concerns", not
+  // "concerns.html", so compare with the extension stripped or the current tab
+  // stops being marked.
+  const here = (location.pathname.split('/').pop() || 'index').replace(/\.html$/, '');
   const nav = PAGES.map(
     ([href, label]) =>
-      `<a href="${href}"${href === here ? ' aria-current="page"' : ''}>${label}</a>`,
+      `<a href="${href}"${href.replace(/\.html$/, '') === here ? ' aria-current="page"' : ''}>${label}</a>`,
   ).join('');
 
   document.body.insertAdjacentHTML(
