@@ -125,10 +125,14 @@ if (requireLogin()) {
             <div class="msg${m.triggered ? ' triggered' : ''}">
               <b>${esc(m.senderName ?? 'unknown')}</b>
               <span class="when">${esc(when(m.ts))}</span>
+              ${m.transcript ? '<span class="tag">transcribed</span>' : ''}
               ${quoted
                 ? `<div class="quoted">${esc(quoted.senderName ?? 'unknown')}: ${esc(quoted.text ?? '')}</div>`
                 : ''}
-              <div>${esc(m.text)}</div>
+              <div${m.transcript ? ' class="transcript"' : ''}>${esc(m.text)}</div>
+              ${m.mediaUrl
+                ? `<a class="media" href="${esc(m.mediaUrl)}" target="_blank" rel="noopener">open ${esc(m.type ?? 'media')}</a>`
+                : ''}
             </div>`;
             }).join('')}
         ${missing > 0 ? `<p class="muted">${missing} older message(s) no longer retained.</p>` : ''}
