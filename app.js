@@ -193,6 +193,20 @@ export const sevPill = (s) => `<span class="pill sev-${esc(s)}">${esc(s)}</span>
 export const statusPill = (s) => `<span class="pill st-${esc(s)}">${esc(s)}</span>`;
 
 /**
+ * The status pills for a concern, including the advisory "possibly resolved".
+ *
+ * That one is not a stored status: the concern is still `open` and still needs
+ * a human to press Resolve. It means the reply thread reads as though the
+ * problem is over - which is a hint worth showing beside the button, not a
+ * decision the tool gets to make.
+ */
+export const concernPills = (c) =>
+  statusPill(c.status) +
+  (c.status === 'open' && c.resolutionHint
+    ? '<span class="pill st-possibly">possibly resolved</span>'
+    : '');
+
+/**
  * Renders the four summary buckets, skipping empty ones. An empty window is a
  * correct summary, so four empty headings would be noise rather than
  * information.

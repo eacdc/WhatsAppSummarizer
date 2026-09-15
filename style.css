@@ -58,6 +58,8 @@ h2 { font-size: 16px; margin: 22px 0 8px; }
 }
 .sev-high { color: var(--high); } .sev-medium { color: var(--medium); } .sev-low { color: var(--low); }
 .st-open { color: var(--high); } .st-acknowledged { color: var(--medium); } .st-resolved { color: var(--ok); }
+/* Advisory, not a status: it reads as hopeful without claiming to be done. */
+.st-possibly { color: var(--ok); border-style: dashed; }
 
 .strip { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .stat {
@@ -91,6 +93,15 @@ input, select {
 form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 
 .msg { padding: 5px 0; border-bottom: 1px solid var(--line); }
+/* The messages the classifier actually cited, within the wider thread. */
+.msg.triggered { border-left: 3px solid var(--high); padding-left: 8px; margin-left: -11px; }
+.msg .quoted {
+  border-left: 2px solid var(--line);
+  padding-left: 8px;
+  margin: 2px 0 2px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .msg:last-child { border-bottom: 0; }
 .msg b { font-size: 13px; }
 .msg .when { color: var(--muted); font-size: 12px; }
@@ -98,9 +109,11 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; mar
 .notice { padding: 10px 12px; border-radius: var(--radius); margin-bottom: 12px; }
 .notice.err { background: #fdecea; color: #7a1b13; }
 .notice.info { background: #eef4fb; color: #163d68; }
+.notice.ok { background: #e8f5ec; color: #14532d; }
 @media (prefers-color-scheme: dark) {
   .notice.err { background: #3a1c19; color: #ffb3ab; }
   .notice.info { background: #16283d; color: #b9d4f2; }
+  .notice.ok { background: #16301f; color: #a8e6bd; }
 }
 .empty { color: var(--muted); padding: 16px 0; }
 
