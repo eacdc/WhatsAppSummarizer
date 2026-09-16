@@ -95,8 +95,10 @@ if (requireLogin()) {
         <span class="muted">${esc(c.category)} · ${esc(d.groupName)} · raised ${esc(ago(c.createdAt))}</span>
       </div>
 
-      ${c.resolutionHint
-        ? // notice() escapes its own text, so this is passed through raw.
+      ${c.status === 'open' && c.resolutionHint
+        ? // Gated on open for the same reason as the pill: once a human has
+          // acknowledged or resolved it, a leftover hint is stale advice.
+          // notice() escapes its own text, so this is passed through raw.
           notice(
             `Looks resolved - ${c.resolutionHint.senderName ?? 'someone'} wrote ` +
               `"${c.resolutionHint.text ?? ''}". Escalation is paused. ` +
