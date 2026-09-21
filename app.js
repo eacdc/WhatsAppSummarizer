@@ -3,10 +3,31 @@
  * No build step and no framework - open a page and it runs.
  */
 
-/** Where the CDC backend lives. Override once here when deploying. */
-const DEFAULT_API = 'http://localhost:3001';
+/**
+ * Where the CDC backend lives.
+ *
+ * A static site has no environment variables at runtime, so the deployed API
+ * address is a constant here. It is the site's own public address, visible in
+ * every network request the page makes - not a secret, and not the kind of
+ * thing the no-hard-coding rule was written for.
+ *
+ * Chosen by where the page itself came from: opened from a file or served off
+ * localhost, it talks to a local backend; served from anywhere else, it talks
+ * to the deployed one. A plain `http://localhost:3001` default was wrong twice
+ * over once this went to Render - the wrong host, and plain http from an https
+ * page, which the browser blocks as mixed content before the request is made.
+ */
+const LOCAL_API = 'http://localhost:3001';
+const DEPLOYED_API = 'https://cdcapi.onrender.com';
 
-export const API = localStorage.getItem('wa_api_base') || DEFAULT_API;
+export function apiBaseFor(hostname, override) {
+  if (override) return override;
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === ''
+    ? LOCAL_API
+    : DEPLOYED_API;
+}
+
+export const API = apiBaseFor(location.hostname, localStorage.getItem('wa_api_base'));
 const TOKEN_KEY = 'wa_token';
 
 export const token = {

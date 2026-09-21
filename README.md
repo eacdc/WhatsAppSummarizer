@@ -145,3 +145,21 @@ Categories: `machine_breakdown`, `quality_reprint`, `delivery_delay`,
   only just been switched on.
 - **Empty bullet arrays are normal and correct** — a quiet window genuinely has
   nothing to report. Don't render four empty headings.
+
+## Deployed
+
+| | |
+|---|---|
+| dashboard | https://whatsappsummarizer.onrender.com |
+| API | https://cdcapi.onrender.com |
+
+The page chooses its backend from the hostname it was served from: `localhost`
+or `127.0.0.1` gets `http://localhost:3001`, anything else gets the deployed
+API. A static site has no environment variables at runtime, so that address is
+a constant in `app.js` - it is the API's own public address, not a secret.
+
+To point a deployed page at a different backend, in the browser console:
+
+    localStorage.setItem('wa_api_base', 'http://192.168.0.156:3001')
+
+Tests: `node --test` in this folder. No package.json and no build step.
