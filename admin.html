@@ -40,6 +40,32 @@ if (requireLogin()) {
     // The person dropdown can only offer people who already exist as owners,
     // because an alert to a number with no owner record is signed "unknown" and
     // the escalation chain has nowhere to go next. Hence the add form above it.
+    const nameOf = (phone) => d.owners.find((o) => o._id === phone)?.name || phone;
+
+    // The ladder, in order, each with a remove. Re-ordering is remove-and-add,
+    // which is honest for a list that will hold two or three names and avoids
+    // drag handles nobody asked for.
+    const ladderCell = (g) => {
+      const ladder = g.escalationTo ?? [];
+      const taken = new Set([...ladder, g.ownerPhone].filter(Boolean));
+      const choices = d.owners.filter((o) => !taken.has(o._id));
+      return (
+        (ladder.length
+          ? `<ol class="ladder">${ladder
+              .map(
+                (p, i) =>
+                  `<li>${esc(nameOf(p))} <button data-drop="${esc(g._id)}|${i}" title="Remove">&times;</button></li>`,
+              )
+              .join('')}</ol>`
+          : '<span class="muted">nobody</span>') +
+        (choices.length
+          ? `<select data-add="${esc(g._id)}"><option value="">add...</option>${choices
+              .map((o) => `<option value="${esc(o._id)}">${esc(o.name || o._id)}</option>`)
+              .join('')}</select>`
+          : '')
+      );
+    };
+
     // The wait belongs next to the setting that decides it, not only in a
     // config file on the server.
     const waitLabel = (kind) =>
@@ -69,13 +95,17 @@ if (requireLogin()) {
       <h2>Groups</h2>
       <p class="muted">Turning a group on sets its start point to now. Messages sent
       before that are never read - and turning it off and on again does not move it.</p>
+      <p class="muted">The person alerted gets the first DM. <b>Escalates to</b> is the ladder
+      after that, in order - each one is pulled in only if the person before them
+      has not acknowledged. Leave it empty and the group falls back to the
+      escalates-to set against the person on the routing tab.</p>
       <p class="muted"><b>Internal</b> groups are judged for things that have gone wrong on
       the floor. <b>Client</b> groups are judged much more readily: any customer
       complaint, and any customer question nobody has answered, is a concern.
       Everything from a group goes to its person, first alert and escalations
       both.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Monitored</th><th>Group</th><th>Type</th><th>Person alerted</th><th>Department</th><th>Last message</th></tr></thead>
+        <thead><tr><th>Monitored</th><th>Group</th><th>Type</th><th>Person alerted</th><th>Escalates to</th><th>Department</th><th>Last message</th></tr></thead>
         <tbody>${groups.map((g) => `
           <tr>
             <td><input type="checkbox" data-toggle="${esc(g._id)}" ${g.monitored ? 'checked' : ''}></td>
@@ -83,6 +113,7 @@ if (requireLogin()) {
             <td data-label="Type"><select data-kind="${esc(g._id)}">${d.groupKinds.map((k) => `
               <option value="${esc(k)}" ${(g.kind ?? 'internal') === k ? 'selected' : ''}>${esc(k)}${waitLabel(k)}</option>`).join('')}</select></td>
             <td data-label="Person alerted"><select data-person="${esc(g._id)}">${personOptions(g.ownerPhone ?? '')}</select></td>
+            <td data-label="Escalates to">${ladderCell(g)}</td>
             <td data-label="Dept"><input data-dept="${esc(g._id)}" value="${esc(g.department ?? '')}" size="12" placeholder="-"></td>
             <td class="muted" data-label="Last message">${esc(ago(g.lastTs))}</td>
           </tr>`).join('')}</tbody></table></div>`;
@@ -120,6 +151,36 @@ if (requireLogin()) {
 
     patchSelect('kind', 'kind');
     patchSelect('person', 'ownerPhone');
+
+    // The whole array is sent every time, so the server validates one shape and
+    // the row can never be left half-applied.
+    const saveLadder = async (groupId, ladder) => {
+      try {
+        await api(`/groups/${encodeURIComponent(groupId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ escalationTo: ladder }),
+        });
+        location.reload();
+      } catch (err) {
+        fail(err);
+      }
+    };
+
+    for (const sel of body.querySelectorAll('[data-add]')) {
+      sel.onchange = () => {
+        if (!sel.value) return;
+        const g = groups.find((x) => x._id === sel.dataset.add);
+        saveLadder(g._id, [...(g.escalationTo ?? []), sel.value]);
+      };
+    }
+
+    for (const btn of body.querySelectorAll('[data-drop]')) {
+      btn.onclick = () => {
+        const [groupId, at] = btn.dataset.drop.split('|');
+        const g = groups.find((x) => x._id === groupId);
+        saveLadder(groupId, (g.escalationTo ?? []).filter((_, i) => i !== Number(at)));
+      };
+    }
 
     for (const box of body.querySelectorAll('[data-toggle]')) {
       box.onchange = async () => {

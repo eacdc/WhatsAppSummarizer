@@ -155,3 +155,9 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; mar
   }
   td:empty { display: none; }
 }
+
+/* A group's escalation ladder: numbered, compact, and readable in a table cell. */
+.ladder { margin: 0 0 4px; padding-left: 18px; font-size: 13px; }
+.ladder li { margin: 1px 0; }
+.ladder button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 3px; }
+.ladder button:hover { color: var(--high); }
