@@ -310,12 +310,26 @@ if (requireLogin()) {
 
   async function renderRuns(body) {
     const { runs } = await api('/runs');
+
+    // More than one host here means more than one instance is polling the same
+    // database - they classify the same messages twice and can DM the same
+    // person twice. Worth saying out loud rather than leaving in a column.
+    const hosts = [...new Set(runs.map((r) => r.host).filter(Boolean))];
+
     body.innerHTML = `
+      ${hosts.length > 1
+        ? notice(
+            `More than one instance has polled recently: ${hosts.join(', ')}. ` +
+              'Only one should be running - stop the others.',
+            'err',
+          )
+        : ''}
       <div class="scroll"><table>
-        <thead><tr><th>Started</th><th>Groups</th><th>Ingested</th><th>Concerns</th><th>Ack</th><th>Escalated</th><th>Errors</th></tr></thead>
+        <thead><tr><th>Started</th><th>Ran on</th><th>Groups</th><th>Ingested</th><th>Concerns</th><th>Ack</th><th>Escalated</th><th>Errors</th></tr></thead>
         <tbody>${runs.map((r) => `
           <tr>
             <td class="muted">${esc(when(r.startedAt))}</td>
+            <td class="mono muted" data-label="Ran on">${esc(r.host ?? '-')}</td>
             <td data-label="Groups">${r.groupsPolled ?? 0}</td>
             <td data-label="Ingested">${r.messagesIngested ?? 0}</td>
             <td data-label="Concerns">${r.concernsRaised ?? 0}</td>
@@ -324,7 +338,7 @@ if (requireLogin()) {
             <td data-label="Errors">${r.errors?.length
               ? `<span class="sev-high">${esc(r.errors.map((e) => e.message).join('; ').slice(0, 120))}</span>`
               : '-'}</td>
-          </tr>`).join('') || '<tr><td colspan="7" class="empty">No runs yet.</td></tr>'}</tbody></table></div>`;
+          </tr>`).join('') || '<tr><td colspan="8" class="empty">No runs yet.</td></tr>'}</tbody></table></div>`;
   }
 }
 </script>
