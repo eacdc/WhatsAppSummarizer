@@ -79,7 +79,22 @@ if (requireLogin()) {
           </option>`))
         .join('');
 
+    // A monitored group that resolves to nobody raises concerns that can never
+    // be alerted, and nothing about the row says so - the ladder looks set up,
+    // because it is. The ladder only ever climbs after a first alert.
+    const hasRule = (id) => d.routing.some((r) => r.groupId === id || r.groupId === '*');
+    const unreachable = groups.filter(
+      (g) => g.monitored && !g.ownerPhone && !(g.escalationTo ?? []).length && !hasRule(g._id) && !d.defaults.ownerPhone,
+    );
+
     body.innerHTML = `
+      ${unreachable.length
+        ? notice(
+            `Nobody will be alerted for: ${unreachable.map((g) => g.name).join(', ')}. ` +
+              'Set a person alerted, or add them to the escalation ladder, or set a routing rule.',
+            'err',
+          )
+        : ''}
       <h2>People</h2>
       <p class="muted">Anyone who can be alerted. Add them here first, then pick them
       against a group below. Phone numbers are digits only, international format,
@@ -97,8 +112,9 @@ if (requireLogin()) {
       before that are never read - and turning it off and on again does not move it.</p>
       <p class="muted">The person alerted gets the first DM. <b>Escalates to</b> is the ladder
       after that, in order - each one is pulled in only if the person before them
-      has not acknowledged. Leave it empty and the group falls back to the
-      escalates-to set against the person on the routing tab.</p>
+      has not acknowledged. With no person alerted, the first name on the ladder
+      gets the first DM, so a ladder on its own works as it reads. Choosing
+      someone who is already on the ladder promotes them out of it.</p>
       <p class="muted"><b>Internal</b> groups are judged for things that have gone wrong on
       the floor. <b>Client</b> groups are judged much more readily: any customer
       complaint, and any customer question nobody has answered, is a concern.
