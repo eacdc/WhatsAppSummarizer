@@ -107,7 +107,11 @@ if (requireLogin()) {
         <button class="primary" type="submit">Add person</button>
       </form>
 
-      <h2>Groups</h2>
+      <div class="row" style="align-items:baseline;gap:12px">
+        <h2>Groups</h2>
+        <button id="refreshGroups" type="button">Refresh from WhatsApp</button>
+      </div>
+      <div id="refreshOut"></div>
       <p class="muted">Turning a group on sets its start point to now. Messages sent
       before that are never read - and turning it off and on again does not move it.</p>
       <p class="muted">The person alerted gets the first DM. <b>Escalates to</b> is the ladder
@@ -163,6 +167,55 @@ if (requireLogin()) {
           sel.disabled = false;
         };
       }
+    };
+
+    // A group the CDC number was just added to is invisible until somebody
+    // imports it. Before this button that meant running a script on a machine
+    // nobody has any more.
+    const refresh = document.getElementById('refreshGroups');
+    const refreshOut = document.getElementById('refreshOut');
+    refresh.onclick = async () => {
+      refresh.disabled = true;
+      refresh.textContent = 'Asking WhatsApp...';
+      refreshOut.innerHTML = '';
+      try {
+        const r = await api('/groups/refresh', { method: 'POST' });
+
+        // A monitored group WhatsApp no longer returns will never see another
+        // message, and nothing else on this page would tell you.
+        const goneAndWatched = (r.missing ?? []).filter((g) => g.monitored);
+        if (goneAndWatched.length) {
+          refreshOut.innerHTML += notice(
+            `Still monitored but no longer on WhatsApp: ${goneAndWatched.map((g) => g.name).join(', ')}. ` +
+              'The number has left these groups - they will not see another message. Nothing was deleted.',
+            'err',
+          );
+        }
+
+        if (r.added?.length) {
+          refreshOut.innerHTML += notice(
+            `${r.added.length} new group${r.added.length === 1 ? '' : 's'}: ` +
+              `${r.added.map((g) => g.name).join(', ')}. They are off until you turn them on.`,
+            'ok',
+          );
+          // Only reload when the table would actually look different, so the
+          // notices above are still on screen to be read.
+          setTimeout(() => location.reload(), 2500);
+        } else if (r.renamed?.length) {
+          refreshOut.innerHTML += notice(
+            `Renamed: ${r.renamed.map((g) => `${g.from} -> ${g.to}`).join(', ')}.`,
+            'ok',
+          );
+          setTimeout(() => location.reload(), 2500);
+        } else if (!goneAndWatched.length) {
+          // Saying nothing changed beats a button that appears to do nothing.
+          refreshOut.innerHTML += notice(`No new groups. WhatsApp returned ${r.found}.`, 'info');
+        }
+      } catch (err) {
+        fail(err);
+      }
+      refresh.disabled = false;
+      refresh.textContent = 'Refresh from WhatsApp';
     };
 
     patchSelect('kind', 'kind');
