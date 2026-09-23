@@ -124,19 +124,30 @@ if (requireLogin()) {
       complaint, and any customer question nobody has answered, is a concern.
       Everything from a group goes to its person, first alert and escalations
       both.</p>
-      <div class="scroll"><table>
-        <thead><tr><th>Monitored</th><th>Group</th><th>Type</th><th>Person alerted</th><th>Escalates to</th><th>Department</th><th>Last message</th></tr></thead>
-        <tbody>${groups.map((g) => `
-          <tr>
-            <td><input type="checkbox" data-toggle="${esc(g._id)}" ${g.monitored ? 'checked' : ''}></td>
-            <td>${esc(g.name)}<div class="mono muted">${esc(g._id)}</div></td>
-            <td data-label="Type"><select data-kind="${esc(g._id)}">${d.groupKinds.map((k) => `
-              <option value="${esc(k)}" ${(g.kind ?? 'internal') === k ? 'selected' : ''}>${esc(k)}${waitLabel(k)}</option>`).join('')}</select></td>
-            <td data-label="Person alerted"><select data-person="${esc(g._id)}">${personOptions(g.ownerPhone ?? '')}</select></td>
-            <td data-label="Escalates to">${ladderCell(g)}</td>
-            <td data-label="Dept"><input data-dept="${esc(g._id)}" value="${esc(g.department ?? '')}" size="12" placeholder="-"></td>
-            <td class="muted" data-label="Last message">${esc(ago(g.lastTs))}</td>
-          </tr>`).join('')}</tbody></table></div>`;
+      ${groups.map((g) => `
+        <article class="group-card">
+          <div class="group-head">
+            <label class="group-name">
+              <input type="checkbox" data-toggle="${esc(g._id)}" ${g.monitored ? 'checked' : ''}>
+              <span>${esc(g.name)}</span>
+            </label>
+            <button data-del-group="${esc(g._id)}" title="Remove from the list">Delete</button>
+          </div>
+          <div class="mono muted group-id">${esc(g._id)} · last message ${esc(ago(g.lastTs))}</div>
+          <div class="group-fields">
+            <label>Type
+              <select data-kind="${esc(g._id)}">${d.groupKinds.map((k) => `
+                <option value="${esc(k)}" ${(g.kind ?? 'internal') === k ? 'selected' : ''}>${esc(k)}${waitLabel(k)}</option>`).join('')}</select>
+            </label>
+            <label>Person alerted
+              <select data-person="${esc(g._id)}">${personOptions(g.ownerPhone ?? '')}</select>
+            </label>
+            <label>Department
+              <input data-dept="${esc(g._id)}" value="${esc(g.department ?? '')}" size="12" placeholder="-">
+            </label>
+          </div>
+          <div class="group-ladder"><span class="muted">Escalates to</span> ${ladderCell(g)}</div>
+        </article>`).join('') || '<p class="empty">No groups yet. Press Refresh from WhatsApp.</p>'}`;
 
     document.getElementById('personForm').onsubmit = async (e) => {
       e.preventDefault();
@@ -217,6 +228,29 @@ if (requireLogin()) {
       refresh.disabled = false;
       refresh.textContent = 'Refresh from WhatsApp';
     };
+
+    for (const btn of body.querySelectorAll('[data-del-group]')) {
+      btn.onclick = async () => {
+        const g = groups.find((x) => x._id === btn.dataset.delGroup);
+        // Naming the group, and saying it is being watched, because the button
+        // sits next to controls where a mis-tap is cheap and this one is not.
+        const warn = g.monitored ? '\n\nIt is currently MONITORED.' : '';
+        if (!confirm(`Delete "${g.name}" and its stored messages?${warn}\n\nIts concerns are kept, and Refresh from WhatsApp pulls the group back.`)) return;
+
+        btn.disabled = true;
+        try {
+          const r = await api(`/groups/${encodeURIComponent(g._id)}`, { method: 'DELETE' });
+          refreshOut.innerHTML = notice(
+            `Deleted ${r.deleted} and ${r.deletedMessages} message(s). Refresh from WhatsApp brings it back.`,
+            'ok',
+          );
+          setTimeout(() => location.reload(), 1800);
+        } catch (err) {
+          btn.disabled = false;
+          fail(err);
+        }
+      };
+    }
 
     patchSelect('kind', 'kind');
     patchSelect('person', 'ownerPhone');

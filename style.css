@@ -156,8 +156,29 @@ form.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; mar
   td:empty { display: none; }
 }
 
-/* A group's escalation ladder: numbered, compact, and readable in a table cell. */
+/* A group's escalation ladder: numbered, compact, and readable inline. */
 .ladder { margin: 0 0 4px; padding-left: 18px; font-size: 13px; }
 .ladder li { margin: 1px 0; }
 .ladder button { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 3px; }
 .ladder button:hover { color: var(--high); }
+
+/* Groups are settings to operate, not rows to scan. Eight controls per group
+   will not fit a table without a horizontal scrollbar, and controls hidden off
+   the right-hand edge go unnoticed - which is how the Type and Person columns
+   were missed when they were first added. Cards wrap instead. */
+.group-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.group-name { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.group-name input { margin: 0; }
+.group-id { font-size: 12px; margin: 2px 0 10px 24px; }
+.group-fields { display: flex; flex-wrap: wrap; gap: 12px 18px; }
+.group-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.group-fields select, .group-fields input { font-size: 14px; }
+.group-ladder { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 12px; }
+.group-ladder .ladder { margin: 0; }
